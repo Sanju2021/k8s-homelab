@@ -1,0 +1,67 @@
+##############################################################################
+# kubeadm init configuration — Production HA cluster
+##############################################################################
+apiVersion: kubeadm.k8s.io/v1beta3
+kind: InitConfiguration
+localAPIEndpoint:
+  advertiseAddress: {{ ansible_host }}
+  bindPort: 6443
+nodeRegistration:
+  criSocket: unix:///var/run/containerd/containerd.sock
+  imagePullPolicy: IfNotPresent
+  name: {{ inventory_hostname }}
+  taints:
+    - effect: NoSchedule
+      key: node-role.kubernetes.io/control-plane
+
+---
+apiVersion: kubeadm.k8s.io/v1beta3
+kind: ClusterConfiguration
+kubernetesVersion: v{{ kubernetes_version }}.0
+clusterName: {{ cluster_name }}
+controlPlaneEndpoint: "{{ k8s_api_vip }}:{{ k8s_api_port }}"
+
+networking:
+  podSubnet: "{{ pod_cidr }}"
+  serviceSubnet: "{{ service_cidr }}"
+  dnsDomain: cluster.local
+
+apiServer:
+  certSANs:
+    - {{ k8s_api_vip }}
+    - 127.0.0.1
+    - kubernetes
+    - kubernetes.default
+    - kubernetes.default.svc
+    - kubernetes.default.svc.cluster.local
+{% for host in groups['k8s_masters'] %}
+    - {{ hostvars[host]['ansible_host'] }}
+    - {{ host }}
+{% endfor %}
+  extraArgs:
+    authorization-mode: "Node,RBAC"
+    event-ttl: "1h"
+    enable-admission-plugins: "NodeRestriction"
+
+controllerManager:
+  extraArgs:
+    bind-address: "0.0.0.0"
+
+scheduler:
+  extraArgs:
+    bind-address: "0.0.0.0"
+
+etcd:
+  local:
+    dataDir: /var/lib/etcd
+
+---
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+cgroupDriver: systemd
+serverTLSBootstrap: true
+
+---
+apiVersion: kubeproxy.config.k8s.io/v1alpha1
+kind: KubeProxyConfiguration
+mode: "ipvs"

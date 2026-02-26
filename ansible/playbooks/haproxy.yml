@@ -1,0 +1,46 @@
+---
+##############################################################################
+# Playbook: haproxy.yml — Standalone HAProxy configuration playbook
+##############################################################################
+
+- name: Configure HAProxy as Kubernetes API Server load balancer
+  hosts: haproxy
+  become: true
+
+  tasks:
+    - name: Install HAProxy
+      ansible.builtin.apt:
+        name: haproxy
+        state: present
+        update_cache: true
+
+    - name: Configure HAProxy
+      ansible.builtin.template:
+        src: ../roles/haproxy/templates/haproxy.cfg.j2
+        dest: /etc/haproxy/haproxy.cfg
+        owner: root
+        group: root
+        mode: '0644'
+        validate: haproxy -c -f %s
+      notify: Restart HAProxy
+
+    - name: Open HAProxy firewall ports
+      community.general.ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: tcp
+      loop:
+        - "6443"   # K8s API passthrough
+        - "8404"   # HAProxy stats page
+
+    - name: Enable and start HAProxy
+      ansible.builtin.service:
+        name: haproxy
+        enabled: true
+        state: started
+
+  handlers:
+    - name: Restart HAProxy
+      ansible.builtin.service:
+        name: haproxy
+        state: restarted

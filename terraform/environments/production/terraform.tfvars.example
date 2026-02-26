@@ -1,0 +1,34 @@
+##############################################################################
+# terraform.tfvars.example
+# Copy this file to terraform.tfvars and fill in your values.
+# NEVER commit terraform.tfvars to version control (it's in .gitignore).
+##############################################################################
+
+# ─── Hyper-V Host ───────────────────────────────────────────────────────────
+hyperv_host     = "192.168.1.50"          # Your Dell Server IP
+hyperv_username = "Administrator"
+hyperv_password = "CHANGE_ME_STRONG_PASSWORD"
+
+# ─── Network ────────────────────────────────────────────────────────────────
+external_switch_name  = "k8s-external"
+physical_adapter_name = "Ethernet"         # Run Get-NetAdapter in PowerShell to find this
+default_gateway       = "192.168.10.1"
+dns_servers           = ["192.168.10.1", "8.8.8.8"]
+
+# ─── Storage ────────────────────────────────────────────────────────────────
+vhd_base_path   = "D:\\HyperV\\VMs"       # Use a fast drive (SSD preferred)
+ubuntu_iso_path = "D:\\ISOs\\ubuntu-24.04-live-server-amd64.iso"
+
+# ─── SSH Key ─────────────────────────────────────────────────────────────────
+# Generate with: ssh-keygen -t ed25519 -C "k8s-homelab"
+ssh_public_key = "ssh-ed25519 AAAAC3... your-key-here"
+
+# ─── VM Sizing (adjust to your hardware) ────────────────────────────────────
+master_cpu       = 4
+master_memory_mb = 8192
+
+worker_cpu       = 8
+worker_memory_mb = 16384
+
+ceph_cpu         = 4
+ceph_memory_mb   = 8192

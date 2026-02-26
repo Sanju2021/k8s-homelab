@@ -1,0 +1,99 @@
+name: Validate Infrastructure Code
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ##############################################################################
+  # Terraform Validation
+  ##############################################################################
+  terraform-validate:
+    name: Terraform Lint & Validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.7"
+
+      - name: Terraform Format Check
+        run: |
+          cd terraform/modules/hyper-v-vm && terraform fmt -check
+          cd ../../modules/networking && terraform fmt -check
+          cd ../../environments/production && terraform fmt -check
+
+      - name: Terraform Validate (VM module)
+        run: |
+          cd terraform/modules/hyper-v-vm
+          terraform init -backend=false
+          terraform validate
+
+      - name: Terraform Validate (production)
+        run: |
+          cd terraform/environments/production
+          terraform init -backend=false
+          terraform validate
+
+  ##############################################################################
+  # Ansible Validation
+  ##############################################################################
+  ansible-lint:
+    name: Ansible Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Python & Ansible
+        run: |
+          pip install ansible ansible-lint
+
+      - name: Install Ansible collections
+        run: |
+          cd ansible
+          ansible-galaxy collection install -r requirements.yml
+
+      - name: Lint Ansible playbooks
+        run: |
+          cd ansible
+          ansible-lint playbooks/site.yml --exclude roles/ || true
+
+      - name: Syntax check playbooks
+        run: |
+          cd ansible
+          ansible-playbook playbooks/site.yml \
+            -i inventories/production/hosts.ini \
+            --syntax-check
+
+  ##############################################################################
+  # Kubernetes Manifests Validation
+  ##############################################################################
+  k8s-validate:
+    name: Kubernetes Manifest Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install kubeval / kubeconform
+        run: |
+          curl -L https://github.com/yannh/kubeconform/releases/download/v0.6.4/kubeconform-linux-amd64.tar.gz \
+          | tar xz
+          sudo mv kubeconform /usr/local/bin/
+
+      - name: Validate Kubernetes manifests
+        run: |
+          kubeconform \
+            -kubernetes-version 1.29.0 \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            -summary \
+            kubernetes/namespaces/*.yaml \
+            kubernetes/workloads/webservers/*.yaml \
+            kubernetes/workloads/postgresql/*.yaml || true

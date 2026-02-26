@@ -1,0 +1,26 @@
+##############################################################################
+# MetalLB — Bare-metal load balancer for Kubernetes
+# Provides LoadBalancer type Services without cloud provider
+##############################################################################
+
+---
+# IPAddressPool — range of IPs MetalLB will assign to LoadBalancer services
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: homelab-pool
+  namespace: metallb-system
+spec:
+  addresses:
+    - 192.168.10.200-192.168.10.220
+
+---
+# L2Advertisement — MetalLB will announce IPs via ARP on Layer 2
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: homelab-l2
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+    - homelab-pool

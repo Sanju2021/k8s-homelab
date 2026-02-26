@@ -1,0 +1,109 @@
+---
+##############################################################################
+# Role: kubernetes-worker — Join worker nodes to the cluster
+##############################################################################
+
+# ─── Install containerd ──────────────────────────────────────────────────────
+- name: Add Docker/containerd GPG key
+  ansible.builtin.get_url:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    dest: /etc/apt/keyrings/docker.asc
+    mode: '0644'
+
+- name: Add Docker apt repository
+  ansible.builtin.apt_repository:
+    repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+    state: present
+    filename: docker
+
+- name: Install containerd
+  ansible.builtin.apt:
+    name: "containerd.io={{ containerd_version }}"
+    state: present
+    update_cache: true
+
+- name: Generate default containerd config
+  ansible.builtin.shell: containerd config default > /etc/containerd/config.toml
+  args:
+    creates: /etc/containerd/config.toml
+
+- name: Enable SystemdCgroup in containerd
+  ansible.builtin.replace:
+    path: /etc/containerd/config.toml
+    regexp: 'SystemdCgroup = false'
+    replace: 'SystemdCgroup = true'
+  notify: Restart containerd
+
+- name: Enable and start containerd
+  ansible.builtin.service:
+    name: containerd
+    enabled: true
+    state: started
+
+# ─── Install Kubernetes packages ─────────────────────────────────────────────
+- name: Add Kubernetes apt GPG key
+  ansible.builtin.get_url:
+    url: "https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version }}/deb/Release.key"
+    dest: /etc/apt/keyrings/kubernetes-apt-keyring.asc
+    mode: '0644'
+
+- name: Add Kubernetes apt repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.asc] https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version }}/deb/ /"
+    state: present
+    filename: kubernetes
+
+- name: Install kubeadm, kubelet, kubectl
+  ansible.builtin.apt:
+    name:
+      - kubelet
+      - kubeadm
+      - kubectl
+    state: present
+    update_cache: true
+
+- name: Hold Kubernetes packages
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop:
+    - kubelet
+    - kubeadm
+    - kubectl
+
+- name: Enable kubelet
+  ansible.builtin.service:
+    name: kubelet
+    enabled: true
+
+# ─── Open Firewall Ports ─────────────────────────────────────────────────────
+- name: Allow worker node ports
+  community.general.ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop:
+    - "10250"   # Kubelet API
+    - "10255"   # Read-only Kubelet API
+    - "30000:32767"  # NodePort range
+    - "179"     # Calico BGP
+
+- name: Allow cluster subnet
+  community.general.ufw:
+    rule: allow
+    src: "{{ cluster_subnet }}"
+
+# ─── Join cluster ───────────────────────────────────────────────────────────
+- name: Join worker node to Kubernetes cluster
+  ansible.builtin.command: "{{ hostvars[k8s_bootstrap_master]['k8s_join_command'] }}"
+  args:
+    creates: /etc/kubernetes/kubelet.conf
+
+# ─── Label worker nodes ─────────────────────────────────────────────────────
+- name: Label node as worker (run from bootstrap master)
+  ansible.builtin.command: >
+    kubectl label node {{ inventory_hostname }} node-role.kubernetes.io/worker=worker --overwrite
+  delegate_to: "{{ k8s_bootstrap_master }}"
+  become_user: ubuntu
+  environment:
+    KUBECONFIG: /home/ubuntu/.kube/config

@@ -1,0 +1,89 @@
+---
+##############################################################################
+# site.yml — Master playbook: provisions all infrastructure in correct order
+##############################################################################
+
+- name: "PHASE 1 — Base OS hardening on all nodes"
+  hosts: all_nodes
+  become: true
+  gather_facts: true
+  roles:
+    - common
+  tags:
+    - phase1
+    - common
+
+- name: "PHASE 2 — Configure HAProxy (Kubernetes API load balancer)"
+  hosts: haproxy
+  become: true
+  roles:
+    - haproxy
+  tags:
+    - phase2
+    - haproxy
+
+- name: "PHASE 3 — Bootstrap Kubernetes control plane (master nodes)"
+  hosts: k8s_masters
+  become: true
+  serial:
+    - 1    # First master bootstraps the cluster
+    - "100%"  # Remaining masters join in parallel
+  roles:
+    - kubernetes-master
+  tags:
+    - phase3
+    - kubernetes
+    - masters
+
+- name: "PHASE 4 — Join Kubernetes worker nodes"
+  hosts: k8s_workers
+  become: true
+  roles:
+    - kubernetes-worker
+  tags:
+    - phase4
+    - kubernetes
+    - workers
+
+- name: "PHASE 5 — Deploy and configure Ceph cluster"
+  hosts: ceph_nodes
+  become: true
+  serial:
+    - 1    # Bootstrap first Ceph node
+    - "100%"  # Add remaining nodes
+  roles:
+    - ceph
+  tags:
+    - phase5
+    - ceph
+    - storage
+
+- name: "PHASE 6 — Deploy Rook-Ceph operator and StorageClass in Kubernetes"
+  hosts: k8s_masters[0]
+  become: false
+  roles:
+    - rook-ceph-operator
+  tags:
+    - phase6
+    - ceph
+    - kubernetes
+    - storage
+
+- name: "PHASE 7 — Deploy MetalLB and NGINX Ingress Controller"
+  hosts: k8s_masters[0]
+  become: false
+  roles:
+    - metallb
+    - ingress-nginx
+  tags:
+    - phase7
+    - networking
+
+- name: "PHASE 8 — Deploy workloads (webservers + postgresql)"
+  hosts: k8s_masters[0]
+  become: false
+  roles:
+    - deploy-workloads
+  tags:
+    - phase8
+    - workloads

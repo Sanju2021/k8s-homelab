@@ -1,0 +1,59 @@
+---
+##############################################################################
+# group_vars/all.yml — Variables shared across ALL hosts
+# Sensitive values are stored in all_vault.yml (Ansible Vault encrypted)
+##############################################################################
+
+# ─── SSH ────────────────────────────────────────────────────────────────────
+ansible_user:           ubuntu
+ansible_ssh_private_key_file: "~/.ssh/k8s-homelab"
+ansible_python_interpreter: /usr/bin/python3
+
+# ─── Network ────────────────────────────────────────────────────────────────
+cluster_subnet:         "192.168.10.0/24"
+cluster_gateway:        "192.168.10.1"
+dns_servers:
+  - "192.168.10.1"
+  - "8.8.8.8"
+ntp_servers:
+  - "0.pool.ntp.org"
+  - "1.pool.ntp.org"
+
+# ─── Kubernetes ─────────────────────────────────────────────────────────────
+kubernetes_version:     "1.29"
+kubernetes_cni:         "calico"
+calico_version:         "v3.27.0"
+pod_cidr:               "10.244.0.0/16"
+service_cidr:           "10.96.0.0/12"
+cluster_name:           "homelab-k8s"
+
+# Control-plane VIP (HAProxy)
+k8s_api_vip:            "192.168.10.10"
+k8s_api_port:           6443
+
+# First master node bootstraps the cluster
+k8s_bootstrap_master:   "192.168.10.11"
+
+# ─── Container Runtime ──────────────────────────────────────────────────────
+containerd_version:     "1.7.*"
+
+# ─── Ceph ───────────────────────────────────────────────────────────────────
+ceph_version:           "reef"   # Ceph 18.x
+ceph_osd_device:        "/dev/sdb"   # Data disk on Ceph nodes
+ceph_pool_name:         "kubernetes"
+ceph_monitors:
+  - "192.168.10.31"
+  - "192.168.10.32"
+  - "192.168.10.33"
+ceph_public_network:    "192.168.10.0/24"
+ceph_cluster_network:   "192.168.10.0/24"
+
+# ─── MetalLB ────────────────────────────────────────────────────────────────
+metallb_version:        "v0.14.3"
+metallb_ip_range:       "192.168.10.200-192.168.10.220"
+
+# ─── NGINX Ingress ──────────────────────────────────────────────────────────
+ingress_nginx_version:  "1.10.0"
+
+# ─── Secrets (loaded from vault) ────────────────────────────────────────────
+# vault_k8s_token, vault_ceph_admin_key etc. — see all_vault.yml

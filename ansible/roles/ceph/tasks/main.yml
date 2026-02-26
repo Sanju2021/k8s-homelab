@@ -1,0 +1,150 @@
+---
+##############################################################################
+# Role: ceph — Deploy Ceph cluster using cephadm (Reef 18.x)
+##############################################################################
+
+# ─── Open Ceph Firewall Ports ───────────────────────────────────────────────
+- name: Allow Ceph MON port
+  community.general.ufw:
+    rule: allow
+    port: "3300"
+    proto: tcp
+
+- name: Allow Ceph MON legacy port
+  community.general.ufw:
+    rule: allow
+    port: "6789"
+    proto: tcp
+
+- name: Allow Ceph OSD ports
+  community.general.ufw:
+    rule: allow
+    port: "6800:7300"
+    proto: tcp
+
+- name: Allow Ceph MGR dashboard
+  community.general.ufw:
+    rule: allow
+    port: "8443"
+    proto: tcp
+
+- name: Allow Ceph MGR API
+  community.general.ufw:
+    rule: allow
+    port: "8080"
+    proto: tcp
+
+- name: Allow cluster subnet
+  community.general.ufw:
+    rule: allow
+    src: "{{ cluster_subnet }}"
+
+# ─── Install prerequisites ──────────────────────────────────────────────────
+- name: Install Ceph prerequisites
+  ansible.builtin.apt:
+    name:
+      - lvm2
+      - podman
+      - python3-pip
+    state: present
+    update_cache: true
+
+# ─── Install cephadm (first Ceph node only) ──────────────────────────────────
+- name: Download cephadm
+  ansible.builtin.get_url:
+    url: https://github.com/ceph/ceph/raw/reef/src/cephadm/cephadm
+    dest: /usr/local/bin/cephadm
+    mode: '0755'
+  when: inventory_hostname == groups['ceph_nodes'][0]
+
+- name: Add Ceph {{ ceph_version }} repository
+  ansible.builtin.command: cephadm add-repo --release {{ ceph_version }}
+  when: inventory_hostname == groups['ceph_nodes'][0]
+
+- name: Install ceph-common on all Ceph nodes
+  ansible.builtin.apt:
+    name: ceph-common
+    state: present
+    update_cache: true
+
+# ─── Bootstrap first Ceph MON ────────────────────────────────────────────────
+- name: Bootstrap Ceph cluster on first node
+  ansible.builtin.command: >
+    cephadm bootstrap
+      --mon-ip {{ hostvars[groups['ceph_nodes'][0]].ansible_host }}
+      --cluster-network {{ ceph_cluster_network }}
+      --initial-dashboard-user admin
+      --initial-dashboard-password {{ vault_ceph_dashboard_password }}
+      --ssh-user ubuntu
+      --ssh-private-key /home/ubuntu/.ssh/id_ed25519
+  args:
+    creates: /etc/ceph/ceph.conf
+  when: inventory_hostname == groups['ceph_nodes'][0]
+  register: ceph_bootstrap
+
+# ─── Copy Ceph SSH key to additional nodes ─────────────────────────────────
+- name: Get Ceph public SSH key
+  ansible.builtin.command: cat /etc/ceph/ceph.pub
+  register: ceph_pub_key
+  when: inventory_hostname == groups['ceph_nodes'][0]
+
+- name: Authorize Ceph SSH key on all Ceph nodes
+  ansible.posix.authorized_key:
+    user: ubuntu
+    key: "{{ hostvars[groups['ceph_nodes'][0]]['ceph_pub_key'].stdout }}"
+    state: present
+
+# ─── Add additional MON/MGR nodes ────────────────────────────────────────────
+- name: Add additional Ceph nodes to cluster
+  ansible.builtin.command: >
+    ceph orch host add {{ item }} {{ hostvars[item].ansible_host }}
+  loop: "{{ groups['ceph_nodes'][1:] }}"
+  when: inventory_hostname == groups['ceph_nodes'][0]
+
+- name: Wait for Ceph cluster to be healthy (may take several minutes)
+  ansible.builtin.command: ceph status
+  register: ceph_status
+  until: '"HEALTH_OK" in ceph_status.stdout or "HEALTH_WARN" in ceph_status.stdout'
+  retries: 30
+  delay: 20
+  when: inventory_hostname == groups['ceph_nodes'][0]
+
+# ─── Deploy OSDs on all Ceph nodes ──────────────────────────────────────────
+- name: Deploy OSDs using available devices
+  ansible.builtin.command: >
+    ceph orch daemon add osd {{ hostvars[item].ansible_host }}:{{ ceph_osd_device }}
+  loop: "{{ groups['ceph_nodes'] }}"
+  when: inventory_hostname == groups['ceph_nodes'][0]
+  ignore_errors: true
+
+# ─── Enable Ceph dashboard ──────────────────────────────────────────────────
+- name: Enable Ceph dashboard module
+  ansible.builtin.command: ceph mgr module enable dashboard
+  when: inventory_hostname == groups['ceph_nodes'][0]
+
+- name: Create Ceph pool for Kubernetes
+  ansible.builtin.command: >
+    ceph osd pool create {{ ceph_pool_name }} 128 128
+  when: inventory_hostname == groups['ceph_nodes'][0]
+
+- name: Enable RBD application on pool
+  ansible.builtin.command: >
+    ceph osd pool application enable {{ ceph_pool_name }} rbd
+  when: inventory_hostname == groups['ceph_nodes'][0]
+
+# ─── Create Ceph user for Kubernetes ────────────────────────────────────────
+- name: Create Ceph client for Kubernetes
+  ansible.builtin.command: >
+    ceph auth get-or-create client.kubernetes
+    mon 'profile rbd'
+    osd 'profile rbd pool={{ ceph_pool_name }}'
+    mgr 'profile rbd pool={{ ceph_pool_name }}'
+  register: ceph_k8s_key
+  when: inventory_hostname == groups['ceph_nodes'][0]
+
+- name: Save Ceph Kubernetes key
+  ansible.builtin.copy:
+    content: "{{ ceph_k8s_key.stdout }}"
+    dest: /etc/ceph/ceph.client.kubernetes.keyring
+    mode: '0600'
+  when: inventory_hostname == groups['ceph_nodes'][0]

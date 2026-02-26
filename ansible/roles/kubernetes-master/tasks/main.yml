@@ -1,0 +1,199 @@
+---
+##############################################################################
+# Role: kubernetes-master — Install & configure Kubernetes control plane
+##############################################################################
+
+# ─── Install containerd ──────────────────────────────────────────────────────
+- name: Add Docker/containerd GPG key
+  ansible.builtin.get_url:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    dest: /etc/apt/keyrings/docker.asc
+    mode: '0644'
+
+- name: Add Docker apt repository (for containerd)
+  ansible.builtin.apt_repository:
+    repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+    state: present
+    filename: docker
+
+- name: Install containerd
+  ansible.builtin.apt:
+    name: "containerd.io={{ containerd_version }}"
+    state: present
+    update_cache: true
+
+- name: Generate default containerd config
+  ansible.builtin.shell: containerd config default > /etc/containerd/config.toml
+  args:
+    creates: /etc/containerd/config.toml
+
+- name: Set SystemdCgroup = true in containerd config
+  ansible.builtin.replace:
+    path: /etc/containerd/config.toml
+    regexp: 'SystemdCgroup = false'
+    replace: 'SystemdCgroup = true'
+  notify: Restart containerd
+
+- name: Enable and start containerd
+  ansible.builtin.service:
+    name: containerd
+    enabled: true
+    state: started
+
+# ─── Install Kubernetes packages ─────────────────────────────────────────────
+- name: Add Kubernetes apt GPG key
+  ansible.builtin.get_url:
+    url: "https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version }}/deb/Release.key"
+    dest: /etc/apt/keyrings/kubernetes-apt-keyring.asc
+    mode: '0644'
+
+- name: Add Kubernetes apt repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.asc] https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version }}/deb/ /"
+    state: present
+    filename: kubernetes
+
+- name: Install kubeadm, kubelet, kubectl
+  ansible.builtin.apt:
+    name:
+      - "kubelet"
+      - "kubeadm"
+      - "kubectl"
+    state: present
+    update_cache: true
+
+- name: Hold Kubernetes packages at current version
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop:
+    - kubelet
+    - kubeadm
+    - kubectl
+
+- name: Enable kubelet service
+  ansible.builtin.service:
+    name: kubelet
+    enabled: true
+
+# ─── Open Firewall Ports for Masters ────────────────────────────────────────
+- name: Allow Kubernetes control plane ports
+  community.general.ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop:
+    - "6443"    # Kubernetes API server
+    - "2379"    # etcd client
+    - "2380"    # etcd peer
+    - "10250"   # Kubelet API
+    - "10251"   # kube-scheduler
+    - "10252"   # kube-controller-manager
+    - "10255"   # Read-only Kubelet API
+    - "179"     # Calico BGP
+
+- name: Allow cluster subnet through UFW
+  community.general.ufw:
+    rule: allow
+    src: "{{ cluster_subnet }}"
+
+# ─── Bootstrap first master ──────────────────────────────────────────────────
+- name: Generate kubeadm init configuration
+  ansible.builtin.template:
+    src: kubeadm-init.yaml.j2
+    dest: /etc/kubernetes/kubeadm-init.yaml
+    mode: '0600'
+  when: ansible_host == k8s_bootstrap_master
+
+- name: Initialize Kubernetes cluster (first master only)
+  ansible.builtin.command: >
+    kubeadm init --config /etc/kubernetes/kubeadm-init.yaml --upload-certs
+  register: kubeadm_init_output
+  args:
+    creates: /etc/kubernetes/admin.conf
+  when: ansible_host == k8s_bootstrap_master
+
+- name: Save kubeadm init output
+  ansible.builtin.copy:
+    content: "{{ kubeadm_init_output.stdout }}"
+    dest: /root/kubeadm-init.log
+    mode: '0600'
+  when:
+    - ansible_host == k8s_bootstrap_master
+    - kubeadm_init_output.changed
+
+# ─── Configure kubectl for ubuntu user ──────────────────────────────────────
+- name: Create .kube directory for ubuntu user
+  ansible.builtin.file:
+    path: /home/ubuntu/.kube
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: '0755'
+  when: ansible_host == k8s_bootstrap_master
+
+- name: Copy admin.conf to ubuntu user
+  ansible.builtin.copy:
+    src: /etc/kubernetes/admin.conf
+    dest: /home/ubuntu/.kube/config
+    remote_src: true
+    owner: ubuntu
+    group: ubuntu
+    mode: '0600'
+  when: ansible_host == k8s_bootstrap_master
+
+# ─── Install Calico CNI ──────────────────────────────────────────────────────
+- name: Download Calico operator manifest
+  ansible.builtin.get_url:
+    url: "https://raw.githubusercontent.com/projectcalico/calico/{{ calico_version }}/manifests/tigera-operator.yaml"
+    dest: /tmp/tigera-operator.yaml
+    mode: '0644'
+  when: ansible_host == k8s_bootstrap_master
+
+- name: Apply Calico operator
+  ansible.builtin.command: kubectl apply -f /tmp/tigera-operator.yaml
+  become_user: ubuntu
+  environment:
+    KUBECONFIG: /home/ubuntu/.kube/config
+  when: ansible_host == k8s_bootstrap_master
+
+- name: Apply Calico custom resources
+  ansible.builtin.template:
+    src: calico-custom-resources.yaml.j2
+    dest: /tmp/calico-custom-resources.yaml
+    mode: '0644'
+  when: ansible_host == k8s_bootstrap_master
+
+- name: Apply Calico custom resources manifest
+  ansible.builtin.command: kubectl apply -f /tmp/calico-custom-resources.yaml
+  become_user: ubuntu
+  environment:
+    KUBECONFIG: /home/ubuntu/.kube/config
+  when: ansible_host == k8s_bootstrap_master
+
+# ─── Generate join tokens for additional masters & workers ──────────────────
+- name: Get certificate key for additional masters
+  ansible.builtin.command: kubeadm init phase upload-certs --upload-certs
+  register: cert_key_output
+  when: ansible_host == k8s_bootstrap_master
+
+- name: Get join token
+  ansible.builtin.command: kubeadm token create --print-join-command
+  register: join_token_output
+  when: ansible_host == k8s_bootstrap_master
+
+- name: Store join command as fact
+  ansible.builtin.set_fact:
+    k8s_join_command: "{{ join_token_output.stdout }}"
+    k8s_cert_key: "{{ cert_key_output.stdout_lines[-1] }}"
+  when: ansible_host == k8s_bootstrap_master
+
+# ─── Join additional master nodes ───────────────────────────────────────────
+- name: Join additional master nodes to control plane
+  ansible.builtin.command: >
+    {{ hostvars[k8s_bootstrap_master]['k8s_join_command'] }}
+    --control-plane
+    --certificate-key {{ hostvars[k8s_bootstrap_master]['k8s_cert_key'] }}
+  args:
+    creates: /etc/kubernetes/admin.conf
+  when: ansible_host != k8s_bootstrap_master
