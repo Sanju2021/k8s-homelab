@@ -1,0 +1,1484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>K8s Homelab — Infrastructure Showcase</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080c14;
+    --bg2: #0d1220;
+    --grid: #ffffff08;
+    --border: #ffffff12;
+    --border-bright: #ffffff25;
+    --text: #e8edf5;
+    --muted: #6b7a94;
+    --accent: #4fffb0;
+    --accent2: #4b9fff;
+    --accent3: #ff6b6b;
+    --accent4: #ffd166;
+    --glow: rgba(79,255,176,0.15);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    overflow-x: hidden;
+    cursor: crosshair;
+  }
+
+  /* ─── Grid background ─── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ─── Scanline overlay ─── */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.03) 2px,
+      rgba(0,0,0,0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 0 32px; position: relative; z-index: 2; }
+
+  /* ─── NAV ─── */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    border-bottom: 1px solid var(--border);
+    background: rgba(8,12,20,0.85);
+    backdrop-filter: blur(12px);
+  }
+  .nav-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 32px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  .nav-logo {
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    color: var(--accent);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+  .nav-links {
+    display: flex;
+    gap: 32px;
+    list-style: none;
+  }
+  .nav-links a {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    text-decoration: none;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--accent); }
+
+  /* ─── HERO ─── */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    padding-top: 80px;
+    position: relative;
+  }
+  .hero .container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 48px;
+    width: 100%;
+  }
+  .hero-content {
+    flex: 0 0 auto;
+    max-width: 520px;
+  }
+  .hero-tag {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .hero-tag::before {
+    content: '';
+    width: 32px;
+    height: 1px;
+    background: var(--accent);
+  }
+  h1 {
+    font-size: clamp(48px, 8vw, 96px);
+    font-weight: 800;
+    line-height: 0.95;
+    letter-spacing: -2px;
+    margin-bottom: 32px;
+  }
+  h1 .line2 { color: var(--accent); }
+  .hero-desc {
+    font-size: 18px;
+    color: var(--muted);
+    line-height: 1.7;
+    max-width: 560px;
+    margin-bottom: 48px;
+    font-weight: 400;
+  }
+  .hero-ctas {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 14px 28px;
+    border: 1px solid;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+  }
+  .btn-primary:hover { background: transparent; color: var(--accent); box-shadow: 0 0 24px var(--glow); }
+  .btn-ghost {
+    background: transparent;
+    color: var(--text);
+    border-color: var(--border-bright);
+  }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Diagram on hero */
+  .hero-diagram {
+    flex: 0 0 420px;
+    width: 420px;
+    opacity: 0.75;
+    animation: float 6s ease-in-out infinite;
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+
+  /* ─── STATS BAR ─── */
+  .stats-bar {
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+    padding: 24px 0;
+    position: relative;
+    z-index: 2;
+    overflow: hidden;
+  }
+  .stats-inner {
+    display: flex;
+    gap: 0;
+    justify-content: space-between;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 32px;
+  }
+  .stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+    border-right: 1px solid var(--border);
+    padding: 0 24px;
+  }
+  .stat-item:last-child { border-right: none; }
+  .stat-num {
+    font-family: 'Space Mono', monospace;
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .stat-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    text-align: center;
+  }
+
+  /* ─── SECTION COMMON ─── */
+  section { padding: 120px 0; position: relative; z-index: 2; }
+  .section-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .section-label::after {
+    content: '';
+    flex: 1;
+    max-width: 48px;
+    height: 1px;
+    background: var(--accent);
+  }
+  h2 {
+    font-size: clamp(32px, 5vw, 56px);
+    font-weight: 800;
+    letter-spacing: -1px;
+    line-height: 1.05;
+    margin-bottom: 16px;
+  }
+  .section-sub {
+    color: var(--muted);
+    font-size: 16px;
+    max-width: 560px;
+    line-height: 1.6;
+    margin-bottom: 64px;
+  }
+
+  /* ─── ARCHITECTURE ─── */
+  .arch-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px;
+    background: var(--border);
+    border: 1px solid var(--border);
+  }
+  .arch-cell {
+    background: var(--bg2);
+    padding: 32px;
+    transition: background 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .arch-cell::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, var(--glow), transparent);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .arch-cell:hover::before { opacity: 1; }
+  .arch-cell-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .arch-icon {
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--border-bright);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .arch-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .arch-count {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    background: rgba(79,255,176,0.1);
+    border: 1px solid rgba(79,255,176,0.2);
+    padding: 2px 8px;
+    letter-spacing: 1px;
+    margin-left: auto;
+  }
+  .arch-nodes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .node-chip {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    padding: 6px 10px;
+    border: 1px solid var(--border-bright);
+    color: var(--muted);
+    letter-spacing: 1px;
+    transition: all 0.2s;
+  }
+  .node-chip:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(79,255,176,0.05);
+  }
+  .node-chip.master { border-color: rgba(75,159,255,0.4); color: var(--accent2); }
+  .node-chip.worker { border-color: rgba(79,255,176,0.3); color: var(--accent); }
+  .node-chip.ceph { border-color: rgba(255,209,102,0.4); color: var(--accent4); }
+  .node-chip.lb { border-color: rgba(255,107,107,0.4); color: var(--accent3); }
+  .arch-specs {
+    margin-top: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .arch-spec-row {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .arch-spec-row span:last-child { color: var(--text); }
+
+  /* ─── TECH STACK ─── */
+  .stack-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+  }
+  .stack-card {
+    background: var(--bg2);
+    padding: 28px 24px;
+    transition: all 0.2s;
+    cursor: default;
+    position: relative;
+    overflow: hidden;
+  }
+  .stack-card::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.3s;
+  }
+  .stack-card:hover::after { transform: scaleX(1); }
+  .stack-card:hover { background: #121826; }
+  .stack-layer {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .stack-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .stack-version {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+  }
+
+  /* ─── FLOW DIAGRAM ─── */
+  .flow-section { background: var(--bg2); }
+  .flow-diagram {
+    position: relative;
+    padding: 40px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    overflow-x: auto;
+  }
+  .flow-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin-bottom: 16px;
+    flex-wrap: nowrap;
+    min-width: 700px;
+  }
+  .flow-box {
+    border: 1px solid var(--border-bright);
+    padding: 12px 20px;
+    text-align: center;
+    background: var(--bg2);
+    min-width: 120px;
+    position: relative;
+    cursor: default;
+    transition: all 0.2s;
+  }
+  .flow-box:hover { border-color: var(--accent); box-shadow: 0 0 16px var(--glow); }
+  .flow-box-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .flow-box-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .flow-box-ip {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    color: var(--accent);
+    margin-top: 4px;
+  }
+  .flow-arrow {
+    font-family: 'Space Mono', monospace;
+    font-size: 16px;
+    color: var(--muted);
+    padding: 0 8px;
+    flex-shrink: 0;
+  }
+  .flow-box.accent-blue { border-color: rgba(75,159,255,0.5); }
+  .flow-box.accent-green { border-color: rgba(79,255,176,0.5); }
+  .flow-box.accent-yellow { border-color: rgba(255,209,102,0.4); }
+  .flow-box.accent-red { border-color: rgba(255,107,107,0.4); }
+  .flow-label-row {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+  }
+  .flow-legend {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    letter-spacing: 1px;
+  }
+  .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* ─── DEPLOYMENT STEPS ─── */
+  .steps-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px;
+    background: var(--border);
+    border: 1px solid var(--border);
+  }
+  .step-card {
+    background: var(--bg2);
+    padding: 32px;
+    position: relative;
+    overflow: hidden;
+    transition: background 0.2s;
+  }
+  .step-card:hover { background: #0f1624; }
+  .step-num {
+    font-family: 'Space Mono', monospace;
+    font-size: 64px;
+    font-weight: 700;
+    color: var(--border);
+    line-height: 1;
+    margin-bottom: 16px;
+    transition: color 0.2s;
+  }
+  .step-card:hover .step-num { color: rgba(79,255,176,0.2); }
+  .step-title {
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--text);
+  }
+  .step-desc {
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.6;
+    margin-bottom: 20px;
+  }
+  .step-cmd {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    background: var(--bg);
+    border: 1px solid var(--border-bright);
+    padding: 12px 16px;
+    color: var(--accent);
+    border-left: 3px solid var(--accent);
+    letter-spacing: 0.5px;
+    line-height: 1.8;
+    white-space: pre;
+    overflow-x: auto;
+  }
+
+  /* ─── FILE TREE ─── */
+  .file-tree {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    line-height: 2;
+    padding: 32px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    position: relative;
+  }
+  .tree-line { display: flex; align-items: center; gap: 8px; }
+  .tree-indent { color: var(--border-bright); }
+  .tree-dir { color: var(--accent2); font-weight: 700; }
+  .tree-file { color: var(--muted); }
+  .tree-badge {
+    font-size: 9px;
+    padding: 1px 6px;
+    border: 1px solid;
+    letter-spacing: 1px;
+    margin-left: auto;
+  }
+  .tree-badge.tf { border-color: rgba(75,159,255,0.4); color: var(--accent2); }
+  .tree-badge.yml { border-color: rgba(79,255,176,0.4); color: var(--accent); }
+  .tree-badge.k8s { border-color: rgba(255,209,102,0.4); color: var(--accent4); }
+  .tree-badge.doc { border-color: rgba(255,107,107,0.3); color: var(--accent3); }
+  .tree-badge.sh { border-color: rgba(255,209,102,0.4); color: var(--accent4); }
+
+  /* ─── WORKLOADS ─── */
+  .workload-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  .workload-card {
+    border: 1px solid var(--border);
+    background: var(--bg2);
+    padding: 36px;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s;
+  }
+  .workload-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 40px var(--glow);
+    transform: translateY(-2px);
+  }
+  .workload-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), transparent);
+  }
+  .workload-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 24px;
+  }
+  .workload-icon {
+    font-size: 40px;
+    line-height: 1;
+  }
+  .workload-replicas {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    background: rgba(79,255,176,0.08);
+    border: 1px solid rgba(79,255,176,0.2);
+    padding: 6px 12px;
+    letter-spacing: 1px;
+  }
+  .workload-name {
+    font-size: 24px;
+    font-weight: 800;
+    margin-bottom: 8px;
+  }
+  .workload-ns {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 1px;
+    margin-bottom: 20px;
+  }
+  .workload-features {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .feature-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .feature-row::before {
+    content: '→';
+    color: var(--accent);
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+
+  /* ─── FOOTER ─── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 48px 0;
+    position: relative;
+    z-index: 2;
+  }
+  .footer-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 32px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .footer-logo {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 2px;
+  }
+  .footer-note {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* ─── ANIMATIONS ─── */
+  .fade-up {
+    opacity: 0;
+    transform: translateY(32px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+  .fade-up.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* ─── TERMINAL BLINK ─── */
+  .blink {
+    animation: blink 1s step-end infinite;
+  }
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  /* ─── SCROLLBAR ─── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border-bright); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+  @media (max-width: 1024px) {
+    .hero-diagram { display: none; }
+    .hero-content { max-width: 100%; }
+    .hero .container { justify-content: flex-start; }
+  }
+  @media (max-width: 768px) {
+    .arch-grid, .steps-grid, .workload-cards { grid-template-columns: 1fr; }
+    .stats-inner { flex-wrap: wrap; gap: 24px; }
+    .stat-item { border-right: none; }
+    .nav-links { display: none; }
+    h1 { font-size: 44px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-inner">
+    <div class="nav-logo">K8S_HOMELAB <span class="blink">▋</span></div>
+    <ul class="nav-links">
+      <li><a href="#architecture">Architecture</a></li>
+      <li><a href="#stack">Stack</a></li>
+      <li><a href="#flow">Flow</a></li>
+      <li><a href="#deploy">Deploy</a></li>
+      <li><a href="#workloads">Workloads</a></li>
+      <li><a href="#monitoring">Monitoring</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-content">
+      <div class="hero-tag">Dell Server × Hyper-V × Ubuntu 24.04</div>
+      <h1>
+        Production<br>
+        <span class="line2">Kubernetes</span><br>
+        Homelab
+      </h1>
+      <p class="hero-desc">
+        A fully automated, HA Kubernetes cluster with Ceph storage — provisioned with Terraform, configured with Ansible, running on Windows Hyper-V. 16 VMs. Zero manual steps.
+      </p>
+      <div class="hero-ctas">
+        <a href="#architecture" class="btn btn-primary">↓ Explore Architecture</a>
+        <a href="#deploy" class="btn btn-ghost">View Deployment Guide</a>
+      </div>
+    </div>
+
+    <!-- ASCII diagram -->
+    <div class="hero-diagram">
+      <svg width="420" height="360" viewBox="0 0 420 360" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Outer border -->
+        <rect x="1" y="1" width="418" height="358" stroke="#ffffff15" stroke-width="1"/>
+        <!-- HAProxy -->
+        <rect x="155" y="20" width="110" height="44" fill="#0d1220" stroke="#ff6b6b55" stroke-width="1"/>
+        <text x="210" y="38" fill="#ff6b6b" font-family="Space Mono" font-size="9" text-anchor="middle">HAPROXY</text>
+        <text x="210" y="52" fill="#6b7a94" font-family="Space Mono" font-size="8" text-anchor="middle">.10.10:6443</text>
+        <!-- Masters -->
+        <rect x="20" y="100" width="100" height="48" fill="#0d1220" stroke="#4b9fff55" stroke-width="1"/>
+        <text x="70" y="120" fill="#4b9fff" font-family="Space Mono" font-size="8" text-anchor="middle">MASTER-01</text>
+        <text x="70" y="136" fill="#6b7a94" font-family="Space Mono" font-size="7" text-anchor="middle">etcd + API</text>
+        <rect x="157" y="100" width="106" height="48" fill="#0d1220" stroke="#4b9fff55" stroke-width="1"/>
+        <text x="210" y="120" fill="#4b9fff" font-family="Space Mono" font-size="8" text-anchor="middle">MASTER-02</text>
+        <text x="210" y="136" fill="#6b7a94" font-family="Space Mono" font-size="7" text-anchor="middle">etcd + API</text>
+        <rect x="300" y="100" width="100" height="48" fill="#0d1220" stroke="#4b9fff55" stroke-width="1"/>
+        <text x="350" y="120" fill="#4b9fff" font-family="Space Mono" font-size="8" text-anchor="middle">MASTER-03</text>
+        <text x="350" y="136" fill="#6b7a94" font-family="Space Mono" font-size="7" text-anchor="middle">etcd + API</text>
+        <!-- Workers -->
+        <rect x="20" y="188" width="56" height="40" fill="#0d1220" stroke="#4fffb030" stroke-width="1"/>
+        <text x="48" y="205" fill="#4fffb0" font-family="Space Mono" font-size="7" text-anchor="middle">W-01</text>
+        <text x="48" y="218" fill="#6b7a94" font-family="Space Mono" font-size="6" text-anchor="middle">.21</text>
+        <rect x="82" y="188" width="56" height="40" fill="#0d1220" stroke="#4fffb030" stroke-width="1"/>
+        <text x="110" y="205" fill="#4fffb0" font-family="Space Mono" font-size="7" text-anchor="middle">W-02</text>
+        <text x="110" y="218" fill="#6b7a94" font-family="Space Mono" font-size="6" text-anchor="middle">.22</text>
+        <rect x="144" y="188" width="56" height="40" fill="#0d1220" stroke="#4fffb030" stroke-width="1"/>
+        <text x="172" y="205" fill="#4fffb0" font-family="Space Mono" font-size="7" text-anchor="middle">W-03</text>
+        <text x="172" y="218" fill="#6b7a94" font-family="Space Mono" font-size="6" text-anchor="middle">.23</text>
+        <rect x="206" y="188" width="56" height="40" fill="#0d1220" stroke="#4fffb030" stroke-width="1"/>
+        <text x="234" y="205" fill="#4fffb0" font-family="Space Mono" font-size="7" text-anchor="middle">W-04</text>
+        <text x="234" y="218" fill="#6b7a94" font-family="Space Mono" font-size="6" text-anchor="middle">.24</text>
+        <rect x="268" y="188" width="56" height="40" fill="#0d1220" stroke="#4fffb030" stroke-width="1"/>
+        <text x="296" y="205" fill="#4fffb0" font-family="Space Mono" font-size="7" text-anchor="middle">W-05</text>
+        <text x="296" y="218" fill="#6b7a94" font-family="Space Mono" font-size="6" text-anchor="middle">.25</text>
+        <rect x="330" y="188" width="40" height="40" fill="#0d1220" stroke="#4fffb030" stroke-width="1"/>
+        <text x="350" y="205" fill="#4fffb0" font-family="Space Mono" font-size="7" text-anchor="middle">W-06</text>
+        <rect x="376" y="188" width="40" height="40" fill="#0d1220" stroke="#4fffb030" stroke-width="1"/>
+        <text x="396" y="205" fill="#4fffb0" font-family="Space Mono" font-size="7" text-anchor="middle">W-07</text>
+        <!-- Ceph -->
+        <text x="210" y="265" fill="#6b7a94" font-family="Space Mono" font-size="8" text-anchor="middle" letter-spacing="3">CEPH STORAGE CLUSTER</text>
+        <rect x="20" y="276" width="68" height="40" fill="#0d1220" stroke="#ffd16640" stroke-width="1"/>
+        <text x="54" y="293" fill="#ffd166" font-family="Space Mono" font-size="7" text-anchor="middle">CEPH-01</text>
+        <text x="54" y="306" fill="#6b7a94" font-family="Space Mono" font-size="6" text-anchor="middle">200GB OSD</text>
+        <rect x="96" y="276" width="68" height="40" fill="#0d1220" stroke="#ffd16640" stroke-width="1"/>
+        <text x="130" y="293" fill="#ffd166" font-family="Space Mono" font-size="7" text-anchor="middle">CEPH-02</text>
+        <text x="130" y="306" fill="#6b7a94" font-family="Space Mono" font-size="6" text-anchor="middle">200GB OSD</text>
+        <rect x="172" y="276" width="76" height="40" fill="#0d1220" stroke="#ffd16640" stroke-width="1"/>
+        <text x="210" y="293" fill="#ffd166" font-family="Space Mono" font-size="7" text-anchor="middle">CEPH-03</text>
+        <text x="210" y="306" fill="#6b7a94" font-family="Space Mono" font-size="6" text-anchor="middle">MON+OSD</text>
+        <rect x="256" y="276" width="68" height="40" fill="#0d1220" stroke="#ffd16640" stroke-width="1"/>
+        <text x="290" y="293" fill="#ffd166" font-family="Space Mono" font-size="7" text-anchor="middle">CEPH-04</text>
+        <text x="290" y="306" fill="#6b7a94" font-family="Space Mono" font-size="6" text-anchor="middle">200GB OSD</text>
+        <rect x="332" y="276" width="68" height="40" fill="#0d1220" stroke="#ffd16640" stroke-width="1"/>
+        <text x="366" y="293" fill="#ffd166" font-family="Space Mono" font-size="7" text-anchor="middle">CEPH-05</text>
+        <text x="366" y="306" fill="#6b7a94" font-family="Space Mono" font-size="6" text-anchor="middle">200GB OSD</text>
+        <!-- Connectors HAProxy → Masters -->
+        <line x1="210" y1="64" x2="70" y2="100" stroke="#ff6b6b40" stroke-width="1" stroke-dasharray="4,3"/>
+        <line x1="210" y1="64" x2="210" y2="100" stroke="#ff6b6b40" stroke-width="1" stroke-dasharray="4,3"/>
+        <line x1="210" y1="64" x2="350" y2="100" stroke="#ff6b6b40" stroke-width="1" stroke-dasharray="4,3"/>
+        <!-- Masters → Workers horizontal bracket -->
+        <line x1="70" y1="148" x2="210" y2="188" stroke="#4b9fff30" stroke-width="1" stroke-dasharray="3,3"/>
+        <line x1="350" y1="148" x2="210" y2="188" stroke="#4b9fff30" stroke-width="1" stroke-dasharray="3,3"/>
+        <!-- Workers → Ceph -->
+        <line x1="210" y1="228" x2="210" y2="276" stroke="#ffd16630" stroke-width="1" stroke-dasharray="4,3"/>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- STATS BAR -->
+<div class="stats-bar">
+  <div class="stats-inner">
+    <div class="stat-item"><span class="stat-num">16</span><span class="stat-label">Virtual Machines</span></div>
+    <div class="stat-item"><span class="stat-num">3</span><span class="stat-label">Master Nodes</span></div>
+    <div class="stat-item"><span class="stat-num">7</span><span class="stat-label">Worker Nodes</span></div>
+    <div class="stat-item"><span class="stat-num">1TB</span><span class="stat-label">Ceph Raw Storage</span></div>
+    <div class="stat-item"><span class="stat-num">10</span><span class="stat-label">Workload Pods</span></div>
+    <div class="stat-item"><span class="stat-num">37</span><span class="stat-label">Repo Files</span></div>
+  </div>
+</div>
+
+<!-- ARCHITECTURE -->
+<section id="architecture">
+  <div class="container">
+    <div class="section-label fade-up">Infrastructure</div>
+    <h2 class="fade-up">Node Architecture</h2>
+    <p class="section-sub fade-up">Every VM is provisioned via Terraform's Hyper-V provider and configured with cloud-init. No manual OS installation required.</p>
+
+    <div class="arch-grid fade-up">
+      <div class="arch-cell">
+        <div class="arch-cell-header">
+          <div class="arch-icon">⚡</div>
+          <div class="arch-title">Control Plane</div>
+          <div class="arch-count">×3</div>
+        </div>
+        <div class="arch-nodes">
+          <span class="node-chip master">master-01 · .11</span>
+          <span class="node-chip master">master-02 · .12</span>
+          <span class="node-chip master">master-03 · .13</span>
+          <span class="node-chip lb">haproxy · .10</span>
+        </div>
+        <div class="arch-specs">
+          <div class="arch-spec-row"><span>vCPU / node</span><span>4 cores</span></div>
+          <div class="arch-spec-row"><span>Memory / node</span><span>8 GB RAM</span></div>
+          <div class="arch-spec-row"><span>OS Disk</span><span>50 GB VHDX</span></div>
+          <div class="arch-spec-row"><span>etcd topology</span><span>Stacked (HA)</span></div>
+          <div class="arch-spec-row"><span>API endpoint</span><span>192.168.10.10:6443</span></div>
+        </div>
+      </div>
+
+      <div class="arch-cell">
+        <div class="arch-cell-header">
+          <div class="arch-icon">🖥</div>
+          <div class="arch-title">Worker Nodes</div>
+          <div class="arch-count">×7</div>
+        </div>
+        <div class="arch-nodes">
+          <span class="node-chip worker">worker-01 · .21</span>
+          <span class="node-chip worker">worker-02 · .22</span>
+          <span class="node-chip worker">worker-03 · .23</span>
+          <span class="node-chip worker">worker-04 · .24</span>
+          <span class="node-chip worker">worker-05 · .25</span>
+          <span class="node-chip worker">worker-06 · .26</span>
+          <span class="node-chip worker">worker-07 · .27</span>
+        </div>
+        <div class="arch-specs">
+          <div class="arch-spec-row"><span>vCPU / node</span><span>8 cores</span></div>
+          <div class="arch-spec-row"><span>Memory / node</span><span>16 GB RAM</span></div>
+          <div class="arch-spec-row"><span>OS Disk</span><span>50 GB VHDX</span></div>
+          <div class="arch-spec-row"><span>NodePort range</span><span>30000–32767</span></div>
+          <div class="arch-spec-row"><span>Container runtime</span><span>containerd 1.7</span></div>
+        </div>
+      </div>
+
+      <div class="arch-cell">
+        <div class="arch-cell-header">
+          <div class="arch-icon">💾</div>
+          <div class="arch-title">Ceph Storage</div>
+          <div class="arch-count">×5</div>
+        </div>
+        <div class="arch-nodes">
+          <span class="node-chip ceph">ceph-01 · .31</span>
+          <span class="node-chip ceph">ceph-02 · .32</span>
+          <span class="node-chip ceph">ceph-03 · .33</span>
+          <span class="node-chip ceph">ceph-04 · .34</span>
+          <span class="node-chip ceph">ceph-05 · .35</span>
+        </div>
+        <div class="arch-specs">
+          <div class="arch-spec-row"><span>vCPU / node</span><span>4 cores</span></div>
+          <div class="arch-spec-row"><span>Memory / node</span><span>8 GB RAM</span></div>
+          <div class="arch-spec-row"><span>OSD disk / node</span><span>200 GB VHDX</span></div>
+          <div class="arch-spec-row"><span>Total raw storage</span><span>1 TB</span></div>
+          <div class="arch-spec-row"><span>Usable (3× replica)</span><span>~333 GB</span></div>
+        </div>
+      </div>
+
+      <div class="arch-cell">
+        <div class="arch-cell-header">
+          <div class="arch-icon">🌐</div>
+          <div class="arch-title">IP & Network</div>
+          <div class="arch-count">flat</div>
+        </div>
+        <div class="arch-specs">
+          <div class="arch-spec-row"><span>Cluster subnet</span><span>192.168.10.0/24</span></div>
+          <div class="arch-spec-row"><span>Pod CIDR</span><span>10.244.0.0/16</span></div>
+          <div class="arch-spec-row"><span>Service CIDR</span><span>10.96.0.0/12</span></div>
+          <div class="arch-spec-row"><span>MetalLB pool</span><span>.200 – .220</span></div>
+          <div class="arch-spec-row"><span>CNI</span><span>Calico VXLANCrossSubnet</span></div>
+          <div class="arch-spec-row"><span>Hyper-V switch</span><span>External (bound to NIC)</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TECH STACK -->
+<section id="stack" style="background: var(--bg2); padding: 80px 0;">
+  <div class="container">
+    <div class="section-label fade-up">Technology</div>
+    <h2 class="fade-up">Full Stack</h2>
+    <p class="section-sub fade-up">Every layer is pinned to a specific version and automated end-to-end.</p>
+
+    <div class="stack-grid fade-up">
+      <div class="stack-card"><div class="stack-layer">Hypervisor</div><div class="stack-name">Windows Hyper-V</div><div class="stack-version">Server 2022</div></div>
+      <div class="stack-card"><div class="stack-layer">Operating System</div><div class="stack-name">Ubuntu Server</div><div class="stack-version">24.04 LTS</div></div>
+      <div class="stack-card"><div class="stack-layer">Provisioning</div><div class="stack-name">Terraform</div><div class="stack-version">&gt;= 1.7.0</div></div>
+      <div class="stack-card"><div class="stack-layer">Configuration</div><div class="stack-name">Ansible</div><div class="stack-version">&gt;= 9.0</div></div>
+      <div class="stack-card"><div class="stack-layer">Runtime</div><div class="stack-name">containerd</div><div class="stack-version">1.7.x</div></div>
+      <div class="stack-card"><div class="stack-layer">Orchestration</div><div class="stack-name">Kubernetes</div><div class="stack-version">1.29 (kubeadm)</div></div>
+      <div class="stack-card"><div class="stack-layer">Networking</div><div class="stack-name">Calico</div><div class="stack-version">v3.27</div></div>
+      <div class="stack-card"><div class="stack-layer">Storage</div><div class="stack-name">Ceph / Rook</div><div class="stack-version">Reef 18.x</div></div>
+      <div class="stack-card"><div class="stack-layer">Load Balancer</div><div class="stack-name">MetalLB</div><div class="stack-version">v0.14.3</div></div>
+      <div class="stack-card"><div class="stack-layer">Ingress</div><div class="stack-name">NGINX Ingress</div><div class="stack-version">1.10.0</div></div>
+      <div class="stack-card"><div class="stack-layer">Web Server</div><div class="stack-name">NGINX</div><div class="stack-version">1.25-alpine</div></div>
+      <div class="stack-card"><div class="stack-layer">Database</div><div class="stack-name">PostgreSQL</div><div class="stack-version">16-alpine</div></div>
+      <div class="stack-card"><div class="stack-layer">Monitoring</div><div class="stack-name">Prometheus</div><div class="stack-version">v2.50.0</div></div>
+      <div class="stack-card"><div class="stack-layer">Dashboards</div><div class="stack-name">Grafana</div><div class="stack-version">10.3.0</div></div>
+      <div class="stack-card"><div class="stack-layer">Alerting</div><div class="stack-name">Alertmanager</div><div class="stack-version">v0.26.0</div></div>
+      <div class="stack-card"><div class="stack-layer">Host Metrics</div><div class="stack-name">Node Exporter</div><div class="stack-version">v1.7.0</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- TRAFFIC FLOW -->
+<section id="flow" class="flow-section">
+  <div class="container">
+    <div class="section-label fade-up">Data Path</div>
+    <h2 class="fade-up">Traffic Flow</h2>
+    <p class="section-sub fade-up">From browser to database — every hop is defined, load-balanced, and monitored.</p>
+
+    <div class="flow-diagram fade-up">
+      <div class="flow-label-row">
+        <div class="flow-legend"><div class="dot" style="background:#ff6b6b"></div>External Traffic</div>
+        <div class="flow-legend"><div class="dot" style="background:#4b9fff"></div>K8s Internal</div>
+        <div class="flow-legend"><div class="dot" style="background:#ffd166"></div>Persistent Storage</div>
+      </div>
+
+      <!-- Row 1: External -->
+      <div class="flow-row">
+        <div class="flow-box accent-red">
+          <div class="flow-box-label">Client</div>
+          <div class="flow-box-name">Browser</div>
+          <div class="flow-box-ip">HTTP/HTTPS</div>
+        </div>
+        <div class="flow-arrow">──▶</div>
+        <div class="flow-box accent-red">
+          <div class="flow-box-label">MetalLB LB-IP</div>
+          <div class="flow-box-name">NGINX Ingress</div>
+          <div class="flow-box-ip">192.168.10.200</div>
+        </div>
+        <div class="flow-arrow">──▶</div>
+        <div class="flow-box accent-blue">
+          <div class="flow-box-label">ClusterIP Svc</div>
+          <div class="flow-box-name">nginx-webserver</div>
+          <div class="flow-box-ip">ns: webservers</div>
+        </div>
+        <div class="flow-arrow">──▶</div>
+        <div class="flow-box accent-green">
+          <div class="flow-box-label">5× Pod Replicas</div>
+          <div class="flow-box-name">NGINX Pods</div>
+          <div class="flow-box-ip">w-01 → w-05</div>
+        </div>
+      </div>
+
+      <!-- Row 2: DB -->
+      <div class="flow-row" style="margin-top: 20px;">
+        <div class="flow-box accent-green">
+          <div class="flow-box-label">App Pod</div>
+          <div class="flow-box-name">NGINX / App</div>
+          <div class="flow-box-ip">:5432</div>
+        </div>
+        <div class="flow-arrow">──▶</div>
+        <div class="flow-box accent-blue">
+          <div class="flow-box-label">Headless Svc</div>
+          <div class="flow-box-name">postgresql</div>
+          <div class="flow-box-ip">ns: databases</div>
+        </div>
+        <div class="flow-arrow">──▶</div>
+        <div class="flow-box accent-blue">
+          <div class="flow-box-label">StatefulSet Pod</div>
+          <div class="flow-box-name">postgresql-{0..4}</div>
+          <div class="flow-box-ip">stable DNS</div>
+        </div>
+        <div class="flow-arrow">──▶</div>
+        <div class="flow-box accent-yellow">
+          <div class="flow-box-label">Ceph RBD PVC</div>
+          <div class="flow-box-name">50 GB Volume</div>
+          <div class="flow-box-ip">Rook CSI driver</div>
+        </div>
+      </div>
+
+      <!-- Row 3: API -->
+      <div class="flow-row" style="margin-top: 20px;">
+        <div class="flow-box" style="border-color: #6b7a94;">
+          <div class="flow-box-label">kubectl / CI</div>
+          <div class="flow-box-name">Admin Client</div>
+          <div class="flow-box-ip">:6443</div>
+        </div>
+        <div class="flow-arrow">──▶</div>
+        <div class="flow-box accent-red">
+          <div class="flow-box-label">VIP</div>
+          <div class="flow-box-name">HAProxy</div>
+          <div class="flow-box-ip">.10.10:6443</div>
+        </div>
+        <div class="flow-arrow">──▶</div>
+        <div class="flow-box accent-blue">
+          <div class="flow-box-label">Round-robin</div>
+          <div class="flow-box-name">API Servers ×3</div>
+          <div class="flow-box-ip">.11 / .12 / .13</div>
+        </div>
+        <div class="flow-arrow">──▶</div>
+        <div class="flow-box accent-blue">
+          <div class="flow-box-label">Quorum</div>
+          <div class="flow-box-name">etcd Cluster</div>
+          <div class="flow-box-ip">stacked topology</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DEPLOYMENT STEPS -->
+<section id="deploy">
+  <div class="container">
+    <div class="section-label fade-up">Deployment</div>
+    <h2 class="fade-up">Zero to Cluster</h2>
+    <p class="section-sub fade-up">Nine phases, fully scripted. Run <code style="color:var(--accent); font-family: 'Space Mono',monospace;">./scripts/setup.sh</code> to execute all phases unattended.</p>
+
+    <div class="steps-grid fade-up">
+      <div class="step-card">
+        <div class="step-num">01</div>
+        <div class="step-title">Prepare Hyper-V Host</div>
+        <div class="step-desc">Enable WinRM on the Dell Server, create VHD storage directories, and download the Ubuntu 24.04 ISO.</div>
+        <div class="step-cmd"># PowerShell (run as Administrator)
+winrm quickconfig -q
+New-Item -Path "D:\HyperV\VMs" -Type Directory</div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-num">02</div>
+        <div class="step-title">Configure Terraform</div>
+        <div class="step-desc">Copy the example vars file, fill in your server IP, NIC name, storage paths, and SSH public key.</div>
+        <div class="step-cmd">cp terraform.tfvars.example terraform.tfvars
+# Edit: hyperv_host, ssh_public_key,
+#        vhd_base_path, physical_adapter_name</div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-num">03</div>
+        <div class="step-title">Provision 16 VMs</div>
+        <div class="step-desc">Terraform creates all virtual machines, VHDs, and the external Hyper-V switch in one apply. ~15 minutes.</div>
+        <div class="step-cmd">cd terraform/environments/production
+terraform init
+terraform apply</div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-num">04</div>
+        <div class="step-title">Base OS Hardening</div>
+        <div class="step-desc">Ansible hardens all 16 nodes simultaneously: swap disabled, kernel modules, sysctl tuning, UFW firewall, SSH.</div>
+        <div class="step-cmd">ansible-playbook playbooks/site.yml \
+  --tags phase1 \
+  --vault-password-file .vault_pass</div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-num">05</div>
+        <div class="step-title">Bootstrap Kubernetes</div>
+        <div class="step-desc">Master-01 initialises the cluster with kubeadm. Masters 02–03 join as control-plane nodes. Workers join after.</div>
+        <div class="step-cmd">ansible-playbook playbooks/site.yml \
+  --tags kubernetes \
+  --vault-password-file .vault_pass</div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-num">06</div>
+        <div class="step-title">Deploy Ceph Cluster</div>
+        <div class="step-desc">cephadm bootstraps on node-01, adds 4 more nodes, deploys 5 OSDs, creates the Kubernetes RBD pool.</div>
+        <div class="step-cmd">ansible-playbook playbooks/site.yml \
+  --tags ceph \
+  --vault-password-file .vault_pass</div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-num">07</div>
+        <div class="step-title">Install Add-ons</div>
+        <div class="step-desc">Rook-Ceph operator, MetalLB (IP pool), and NGINX Ingress Controller are installed via Helm.</div>
+        <div class="step-cmd">helm install rook-ceph rook-release/rook-ceph
+kubectl apply -f kubernetes/storage/
+# MetalLB + Ingress auto-configured</div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-num">08</div>
+        <div class="step-title">Deploy Workloads</div>
+        <div class="step-desc">Apply all manifests: namespaces, StorageClass, 5 NGINX replicas, 5 PostgreSQL StatefulSet pods with PVCs.</div>
+        <div class="step-cmd">kubectl apply -f kubernetes/namespaces/
+kubectl apply -f kubernetes/workloads/webservers/
+kubectl apply -f kubernetes/workloads/postgresql/</div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-num">09</div>
+        <div class="step-title">Deploy Monitoring</div>
+        <div class="step-desc">Prometheus, Grafana, Alertmanager, Node Exporter, kube-state-metrics, and PostgreSQL Exporter — all wired up automatically.</div>
+        <div class="step-cmd">kubectl apply -f kubernetes/monitoring/
+# Access: grafana.homelab.local
+# Access: prometheus.homelab.local</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- WORKLOADS -->
+<section id="workloads" style="background: var(--bg2);">
+  <div class="container">
+    <div class="section-label fade-up">Applications</div>
+    <h2 class="fade-up">Deployed Workloads</h2>
+    <p class="section-sub fade-up">Production-grade Kubernetes manifests with anti-affinity, health checks, autoscaling, and persistent storage.</p>
+
+    <div class="workload-cards fade-up">
+      <div class="workload-card">
+        <div class="workload-header">
+          <div class="workload-icon">🌐</div>
+          <div class="workload-replicas">5 REPLICAS</div>
+        </div>
+        <div class="workload-name">NGINX Web Server</div>
+        <div class="workload-ns">namespace: webservers · Deployment</div>
+        <div class="workload-features">
+          <div class="feature-row">topologySpreadConstraints — pods spread across nodes</div>
+          <div class="feature-row">HPA — auto-scales to 10 pods on CPU pressure</div>
+          <div class="feature-row">Ingress rule — webserver.homelab.local</div>
+          <div class="feature-row">RollingUpdate with zero downtime (maxUnavailable: 0)</div>
+          <div class="feature-row">Liveness + readiness probes on /health</div>
+          <div class="feature-row">ConfigMap for HTML content and nginx.conf</div>
+        </div>
+      </div>
+
+      <div class="workload-card">
+        <div class="workload-header">
+          <div class="workload-icon">🐘</div>
+          <div class="workload-replicas">5 INSTANCES</div>
+        </div>
+        <div class="workload-name">PostgreSQL 16</div>
+        <div class="workload-ns">namespace: databases · StatefulSet</div>
+        <div class="workload-features">
+          <div class="feature-row">Each pod has its own 50 GB Ceph RBD PVC</div>
+          <div class="feature-row">PodDisruptionBudget — minimum 4/5 always available</div>
+          <div class="feature-row">Stable pod DNS: postgresql-{0..4}.headless</div>
+          <div class="feature-row">Headless + ClusterIP services for direct and LB access</div>
+          <div class="feature-row">Tuned postgresql.conf — 256 MB shared_buffers</div>
+          <div class="feature-row">pg_hba.conf allows pod CIDR (10.244.0.0/16)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FILE TREE -->
+<section>
+  <div class="container">
+    <div class="section-label fade-up">Repository</div>
+    <h2 class="fade-up">Project Structure</h2>
+    <p class="section-sub fade-up">37 files. Every directory has a clear responsibility. No config left undocumented.</p>
+
+    <div class="file-tree fade-up">
+      <div class="tree-line"><span class="tree-dir">k8s-homelab/</span></div>
+      <div class="tree-line"><span class="tree-indent">├── </span><span class="tree-dir">terraform/</span></div>
+      <div class="tree-line"><span class="tree-indent">│   ├── modules/hyper-v-vm/</span></div>
+      <div class="tree-line"><span class="tree-indent">│   │   ├── </span><span class="tree-file">main.tf</span><span class="tree-badge tf">TF</span></div>
+      <div class="tree-line"><span class="tree-indent">│   │   ├── </span><span class="tree-file">variables.tf</span><span class="tree-badge tf">TF</span></div>
+      <div class="tree-line"><span class="tree-indent">│   │   └── </span><span class="tree-file">outputs.tf</span><span class="tree-badge tf">TF</span></div>
+      <div class="tree-line"><span class="tree-indent">│   ├── modules/networking/main.tf</span><span class="tree-badge tf">TF</span></div>
+      <div class="tree-line"><span class="tree-indent">│   └── environments/production/</span></div>
+      <div class="tree-line"><span class="tree-indent">│       ├── </span><span class="tree-file">main.tf</span><span class="tree-indent"> — all 16 VMs</span><span class="tree-badge tf">TF</span></div>
+      <div class="tree-line"><span class="tree-indent">│       ├── </span><span class="tree-file">variables.tf</span><span class="tree-badge tf">TF</span></div>
+      <div class="tree-line"><span class="tree-indent">│       └── </span><span class="tree-file">terraform.tfvars.example</span><span class="tree-badge tf">TF</span></div>
+      <div class="tree-line"><span class="tree-indent">├── </span><span class="tree-dir">ansible/</span></div>
+      <div class="tree-line"><span class="tree-indent">│   ├── ansible.cfg</span><span class="tree-badge yml">CFG</span></div>
+      <div class="tree-line"><span class="tree-indent">│   ├── requirements.yml</span><span class="tree-badge yml">YML</span></div>
+      <div class="tree-line"><span class="tree-indent">│   ├── inventories/production/</span></div>
+      <div class="tree-line"><span class="tree-indent">│   │   ├── </span><span class="tree-file">hosts.ini</span><span class="tree-indent"> — all 16 nodes</span></div>
+      <div class="tree-line"><span class="tree-indent">│   │   └── </span><span class="tree-file">group_vars/all.yml</span></div>
+      <div class="tree-line"><span class="tree-indent">│   ├── roles/common/</span><span class="tree-badge yml">ROLE</span></div>
+      <div class="tree-line"><span class="tree-indent">│   ├── roles/kubernetes-master/</span><span class="tree-badge yml">ROLE</span></div>
+      <div class="tree-line"><span class="tree-indent">│   ├── roles/kubernetes-worker/</span><span class="tree-badge yml">ROLE</span></div>
+      <div class="tree-line"><span class="tree-indent">│   ├── roles/ceph/</span><span class="tree-badge yml">ROLE</span></div>
+      <div class="tree-line"><span class="tree-indent">│   ├── roles/monitoring/</span><span class="tree-badge yml">ROLE</span></div>
+      <div class="tree-line"><span class="tree-indent">│   └── playbooks/site.yml</span><span class="tree-indent"> — 9 phases</span><span class="tree-badge yml">YML</span></div>
+      <div class="tree-line"><span class="tree-indent">├── </span><span class="tree-dir">kubernetes/</span></div>
+      <div class="tree-line"><span class="tree-indent">│   ├── namespaces/namespaces.yaml</span><span class="tree-badge k8s">K8S</span></div>
+      <div class="tree-line"><span class="tree-indent">│   ├── storage/storageclass.yaml</span><span class="tree-indent"> — Ceph RBD SC</span><span class="tree-badge k8s">K8S</span></div>
+      <div class="tree-line"><span class="tree-indent">│   ├── storage/metallb-config.yaml</span><span class="tree-badge k8s">K8S</span></div>
+      <div class="tree-line"><span class="tree-indent">│   ├── workloads/webservers/nginx-deployment.yaml</span><span class="tree-badge k8s">K8S</span></div>
+      <div class="tree-line"><span class="tree-indent">│   ├── workloads/postgresql/postgresql-statefulset.yaml</span><span class="tree-badge k8s">K8S</span></div>
+      <div class="tree-line"><span class="tree-indent">│   └── monitoring/</span></div>
+      <div class="tree-line"><span class="tree-indent">│       ├── prometheus.yaml</span><span class="tree-indent"> — StatefulSet + rules + RBAC</span><span class="tree-badge k8s">K8S</span></div>
+      <div class="tree-line"><span class="tree-indent">│       ├── grafana.yaml</span><span class="tree-indent"> — Deployment + dashboards + PVC</span><span class="tree-badge k8s">K8S</span></div>
+      <div class="tree-line"><span class="tree-indent">│       └── exporters.yaml</span><span class="tree-indent"> — node/kube-state/pg/alertmanager</span><span class="tree-badge k8s">K8S</span></div>
+      <div class="tree-line"><span class="tree-indent">├── </span><span class="tree-dir">docs/</span></div>
+      <div class="tree-line"><span class="tree-indent">│   ├── </span><span class="tree-file">terraform.md · ansible.md · kubernetes.md</span><span class="tree-badge doc">DOC</span></div>
+      <div class="tree-line"><span class="tree-indent">│   ├── </span><span class="tree-file">ceph.md · networking.md · workloads.md</span><span class="tree-badge doc">DOC</span></div>
+      <div class="tree-line"><span class="tree-indent">│   ├── </span><span class="tree-file">monitoring.md</span><span class="tree-indent"> — Prometheus, Grafana, alerts, PromQL</span><span class="tree-badge doc">DOC</span></div>
+      <div class="tree-line"><span class="tree-indent">│   └── </span><span class="tree-file">troubleshooting.md</span><span class="tree-badge doc">DOC</span></div>
+      <div class="tree-line"><span class="tree-indent">├── </span><span class="tree-file">scripts/setup.sh</span><span class="tree-indent"> — full deployment runner</span><span class="tree-badge sh">SH</span></div>
+      <div class="tree-line"><span class="tree-indent">├── </span><span class="tree-file">.github/workflows/validate.yml</span><span class="tree-indent"> — CI pipeline</span><span class="tree-badge yml">CI</span></div>
+      <div class="tree-line"><span class="tree-indent">├── </span><span class="tree-file">.gitignore</span></div>
+      <div class="tree-line"><span class="tree-file">└── README.md</span><span class="tree-indent"> — full architecture diagram + quick-start</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- MONITORING -->
+<section id="monitoring">
+  <div class="container">
+    <div class="section-label fade-up">Observability</div>
+    <h2 class="fade-up">Prometheus + Grafana</h2>
+    <p class="section-sub fade-up">Full-cluster observability: metrics from every node, pod, database, and storage volume — with pre-built alerts and dashboards.</p>
+
+    <!-- Monitoring architecture diagram -->
+    <div class="flow-diagram fade-up" style="margin-bottom: 48px;">
+      <div class="flow-label-row">
+        <div class="flow-legend"><div class="dot" style="background:#4fffb0"></div>Scrape targets</div>
+        <div class="flow-legend"><div class="dot" style="background:#4b9fff"></div>Storage</div>
+        <div class="flow-legend"><div class="dot" style="background:#ff6b6b"></div>Alerting</div>
+      </div>
+      <div class="flow-row">
+        <div style="display:flex; flex-direction:column; gap:8px; min-width:160px;">
+          <div class="flow-box" style="border-color:rgba(79,255,176,0.4); min-width:140px;">
+            <div class="flow-box-label">DaemonSet ×10</div>
+            <div class="flow-box-name">Node Exporter</div>
+            <div class="flow-box-ip">host metrics</div>
+          </div>
+          <div class="flow-box" style="border-color:rgba(79,255,176,0.4); min-width:140px;">
+            <div class="flow-box-label">Deployment</div>
+            <div class="flow-box-name">kube-state-metrics</div>
+            <div class="flow-box-ip">k8s objects</div>
+          </div>
+          <div class="flow-box" style="border-color:rgba(79,255,176,0.4); min-width:140px;">
+            <div class="flow-box-label">Deployment</div>
+            <div class="flow-box-name">postgres-exporter</div>
+            <div class="flow-box-ip">query / conn stats</div>
+          </div>
+          <div class="flow-box" style="border-color:rgba(79,255,176,0.4); min-width:140px;">
+            <div class="flow-box-label">Autodiscovery</div>
+            <div class="flow-box-name">kubelet/cAdvisor</div>
+            <div class="flow-box-ip">container metrics</div>
+          </div>
+        </div>
+        <div class="flow-arrow" style="font-size:24px;">──▶</div>
+        <div class="flow-box accent-blue" style="align-self:center; padding: 24px 20px;">
+          <div class="flow-box-label">StatefulSet · 50GB Ceph</div>
+          <div class="flow-box-name" style="font-size:20px;">Prometheus</div>
+          <div class="flow-box-ip">30d retention · v2.50</div>
+        </div>
+        <div class="flow-arrow" style="font-size:24px; align-self:center;">──▶</div>
+        <div style="display:flex; flex-direction:column; gap:8px; min-width:150px; align-self:center;">
+          <div class="flow-box" style="border-color:rgba(255,107,107,0.5);">
+            <div class="flow-box-label">Deployment</div>
+            <div class="flow-box-name">Alertmanager</div>
+            <div class="flow-box-ip">Slack / Email</div>
+          </div>
+          <div class="flow-box accent-blue">
+            <div class="flow-box-label">Deployment · 10GB Ceph</div>
+            <div class="flow-box-name">Grafana</div>
+            <div class="flow-box-ip">grafana.homelab.local</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Component cards -->
+    <div class="arch-grid fade-up" style="grid-template-columns: 1fr 1fr 1fr;">
+      <div class="arch-cell">
+        <div class="arch-cell-header">
+          <div class="arch-icon">📈</div>
+          <div class="arch-title">Prometheus</div>
+          <div class="arch-count">v2.50</div>
+        </div>
+        <div class="arch-specs">
+          <div class="arch-spec-row"><span>Deployment type</span><span>StatefulSet</span></div>
+          <div class="arch-spec-row"><span>Storage</span><span>50 GB Ceph RBD</span></div>
+          <div class="arch-spec-row"><span>Retention</span><span>30 days / 40 GB</span></div>
+          <div class="arch-spec-row"><span>Scrape interval</span><span>15 seconds</span></div>
+          <div class="arch-spec-row"><span>Scrape targets</span><span>6 job types</span></div>
+          <div class="arch-spec-row"><span>Alert rules</span><span>9 pre-built rules</span></div>
+          <div class="arch-spec-row"><span>Access</span><span>prometheus.homelab.local</span></div>
+        </div>
+      </div>
+
+      <div class="arch-cell">
+        <div class="arch-cell-header">
+          <div class="arch-icon">📊</div>
+          <div class="arch-title">Grafana</div>
+          <div class="arch-count">v10.3</div>
+        </div>
+        <div class="arch-specs">
+          <div class="arch-spec-row"><span>Storage</span><span>10 GB Ceph RBD</span></div>
+          <div class="arch-spec-row"><span>Datasource</span><span>Prometheus (auto)</span></div>
+          <div class="arch-spec-row"><span>Dashboards</span><span>K8s cluster (built-in)</span></div>
+          <div class="arch-spec-row"><span>Import by ID</span><span>1860, 7249, 9628, 2842</span></div>
+          <div class="arch-spec-row"><span>Alerting</span><span>Unified alerting on</span></div>
+          <div class="arch-spec-row"><span>Plugins</span><span>piechart, worldmap, clock</span></div>
+          <div class="arch-spec-row"><span>Access</span><span>grafana.homelab.local</span></div>
+        </div>
+      </div>
+
+      <div class="arch-cell">
+        <div class="arch-cell-header">
+          <div class="arch-icon">🔔</div>
+          <div class="arch-title">Exporters & Alerts</div>
+          <div class="arch-count">×6</div>
+        </div>
+        <div class="arch-nodes" style="margin-bottom:12px;">
+          <span class="node-chip worker">node-exporter</span>
+          <span class="node-chip worker">kube-state-metrics</span>
+          <span class="node-chip ceph">postgres-exporter</span>
+          <span class="node-chip master">alertmanager</span>
+          <span class="node-chip lb">ceph-mgr</span>
+          <span class="node-chip lb">nginx-ingress</span>
+        </div>
+        <div class="arch-specs">
+          <div class="arch-spec-row"><span>NodeDown</span><span>Critical · 5m</span></div>
+          <div class="arch-spec-row"><span>HighCPU &gt;85%</span><span>Warning · 10m</span></div>
+          <div class="arch-spec-row"><span>PVCFull &gt;80%</span><span>Warning · 5m</span></div>
+          <div class="arch-spec-row"><span>PostgreSQLDown</span><span>Critical · 2m</span></div>
+          <div class="arch-spec-row"><span>CephHealthError</span><span>Critical · 2m</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PromQL examples -->
+    <div style="margin-top: 48px;" class="fade-up">
+      <div class="section-label" style="margin-bottom: 24px;">Key Queries</div>
+      <div class="steps-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+        <div class="step-card">
+          <div class="step-title" style="font-size:15px; margin-bottom:10px;">Node CPU Usage</div>
+          <div class="step-cmd" style="font-size:10px;">100 - (avg by(instance)
+  (rate(node_cpu_seconds_total
+  {mode="idle"}[5m])) * 100)</div>
+        </div>
+        <div class="step-card">
+          <div class="step-title" style="font-size:15px; margin-bottom:10px;">PostgreSQL TPS</div>
+          <div class="step-cmd" style="font-size:10px;">rate(pg_stat_database_xact_commit
+  [5m]) +
+rate(pg_stat_database_xact_rollback
+  [5m])</div>
+        </div>
+        <div class="step-card">
+          <div class="step-title" style="font-size:15px; margin-bottom:10px;">Ceph Capacity %</div>
+          <div class="step-cmd" style="font-size:10px;">ceph_cluster_total_used_bytes /
+ceph_cluster_total_bytes * 100</div>
+        </div>
+        <div class="step-card">
+          <div class="step-title" style="font-size:15px; margin-bottom:10px;">Pod Restart Rate</div>
+          <div class="step-cmd" style="font-size:10px;">rate(kube_pod_container_status
+  _restarts_total[15m])
+  * 60 * 15</div>
+        </div>
+        <div class="step-card">
+          <div class="step-title" style="font-size:15px; margin-bottom:10px;">PVC Usage %</div>
+          <div class="step-cmd" style="font-size:10px;">kubelet_volume_stats_used_bytes /
+kubelet_volume_stats_capacity
+  _bytes * 100</div>
+        </div>
+        <div class="step-card">
+          <div class="step-title" style="font-size:15px; margin-bottom:10px;">NGINX Req/s</div>
+          <div class="step-cmd" style="font-size:10px;">rate(nginx_ingress_controller
+  _requests[5m])</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-logo">K8S_HOMELAB · DELL SERVER · HYPER-V</div>
+    <div class="footer-note">Terraform + Ansible + Kubernetes + Ceph + Prometheus + Grafana</div>
+  </div>
+</footer>
+
+<script>
+  // Intersection observer for fade-up animations
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry, i) => {
+      if (entry.isIntersecting) {
+        setTimeout(() => entry.target.classList.add('visible'), i * 80);
+      }
+    });
+  }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+  document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+
+  // Animated counter for stats
+  function animateCounter(el, target, suffix = '') {
+    let start = 0;
+    const duration = 1200;
+    const step = (timestamp) => {
+      if (!start) start = timestamp;
+      const progress = Math.min((timestamp - start) / duration, 1);
+      const val = Math.floor(progress * target);
+      el.textContent = val + suffix;
+      if (progress < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+
+  // Trigger counters when stats bar is visible
+  const statsObs = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting) {
+      const counters = [
+        [document.querySelectorAll('.stat-num')[0], 16, ''],
+        [document.querySelectorAll('.stat-num')[1], 3, ''],
+        [document.querySelectorAll('.stat-num')[2], 7, ''],
+        [document.querySelectorAll('.stat-num')[4], 10, ''],
+        [document.querySelectorAll('.stat-num')[5], 37, ''],
+      ];
+      counters.forEach(([el, num, sfx]) => animateCounter(el, num, sfx));
+      statsObs.disconnect();
+    }
+  }, { threshold: 0.5 });
+
+  const statsBar = document.querySelector('.stats-bar');
+  if (statsBar) statsObs.observe(statsBar);
+
+  // Cursor glow effect
+  document.addEventListener('mousemove', (e) => {
+    const x = e.clientX / window.innerWidth * 100;
+    const y = e.clientY / window.innerHeight * 100;
+    document.body.style.setProperty('--cursor-x', x + '%');
+    document.body.style.setProperty('--cursor-y', y + '%');
+  });
+</script>
+</body>
+</html>
